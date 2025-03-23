@@ -7,7 +7,7 @@ PYTHON_SCRIPT=$1
 shift
 
 # Initialize the Conda environment
-conda activate venv-bispigals
+conda activate venv-bipolars
 
 # Set the number of threads Numba will use to the number of CPUs per task
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK

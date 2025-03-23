@@ -1,12 +1,12 @@
 """
-BISpectrum PIpeline for GALaxy Surveys (BisPiGalS)
+BIspectrum and Power spectrum Optimization for LArge Redshift Surveys (BIPOLARS)
 -------------------------------------------------
 Author: Asit Dave
 Date: 02-10-2024
 
 Description:
 ------------
-compute_fields.py is a part of the BisPiGalS pipeline that generates F_k and F_x fields along with other necessary computations,
+compute_fields.py is a part of the BIPOLARS pipeline that generates F_k and F_x fields along with other necessary computations,
 for a given galaxy species from Euclid-like survey catalogs. This script is essential for preparing inputs 
 used in bispectrum multipole calculations.
 
@@ -28,13 +28,15 @@ import os
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, parent_dir)
 
-from bispigals import FKPCatalogManager, ComputeFields, Bispectrum
+from bipolars import FKPCatalogManager, ComputeFields, Bispectrum
+from nbodykit.algorithms import RedshiftHistogram
 from nbodykit.lab import cosmology
 from nbodykit import setup_logging
 
 import numpy as np
 import numba as nb
 
+import os
 import logging
 import argparse
 import time
@@ -43,7 +45,7 @@ import pickle
 # Set up logging
 setup_logging(log_level='info')
 
-# ----------------------------------------------------------------------------------------------- #
+# ------------------------------------------- Configure the script ---------------------------------------------------- #
 
 # Realization number of the catalog
 REALIZATION = os.getenv('REALIZATION') if os.getenv('REALIZATION') else "0001"
@@ -60,6 +62,7 @@ CATALOG_INFO_SAVE_DIR = "PATH_TO_SAVE_CATALOG_INFO" # TODO: Change this path
 # Paths to save the fields
 REFERENCE_FILES_DIR = "PATH_TO_SAVE_REFERENCE_FILES" # TODO: Change this path
 
+# Path to save reference files
 K_BIN_INDICES_FILE_PATH = os.path.join(REFERENCE_FILES_DIR, "k-bin_indices_info.pkl")
 KBIN_FILE_PATH = os.path.join(REFERENCE_FILES_DIR, "k_bins.npy")
 KCONFIG_FILE_PATH = os.path.join(REFERENCE_FILES_DIR, "k_configs.npy")
@@ -68,40 +71,41 @@ NUM_TRIANGLES_FILE_PATH = os.path.join(REFERENCE_FILES_DIR, "num_triangles.npy")
 # ----------------------------------------------------------------------------------------------- #
 
 # --- Cosmology ---
-cosmo = cosmology.Planck15
+cosmo = cosmology.Cosmology(h=0.67, Omega0_cdm=0.27, Omega0_b=0.049)
 
 # --- Configuration for Fourier algorithm ---
-N = 256
+N = 450
 L = 3000
 dk = 0.009
-kmin =  0 + dk/2
+kmin = dk/2
 kmax = 0.3
 
 # Configuration for Fourier algorithm
 fourier_config = {
     'N': N,  # Number of grid points per axis
-    'L': L,  # Box size (Mpc/h) 
-    'dk': dk,  # k-bin width (optional, default is 2pi/L)
-    'kmin': kmin,  # Minimum k-bin center value (optional, minimum is zero + dk/2)
-    'kmax': kmax,  # Maximum k-bin center value (optional, default Nyquist) 
-    'poles': [0, 2],  # List of poles to compute (optional, default is [0])
+    'L': L,  # Box size (Mpc/h)
+    'dk': dk,  # k-bin width
+    'kmin': kmin,  # Minimum k value
+    'kmax': kmax,  # Maximum k value
+    'poles': [0, 2],  # List of poles to compute
 }
 
 # ----------------------------------------------------------------------------------------------- #
+
 if __name__ == "__main__":
 
-    try:
-        max_threads = int(os.getenv('SLURM_CPUS_PER_TASK')) # Number of workers for parallel processing
-    except:
-        max_threads = os.cpu_count()
-    
+    max_threads = int(os.getenv('OMP_MAX_ACTIVE_LEVELS', os.cpu_count()))
+
+    # Set the OpenMP environment variable
+    os.environ['OMP_MAX_ACTIVE_LEVELS'] = str(max_threads)
+
     nb.set_num_threads(max_threads) # Number of threads for numba functions
 
     logging.info(f"Using {max_threads} workers for parallel computation.")
 
     # --- Parse Arguments ---
-    parser = argparse.ArgumentParser(description="Compute Fx-fields for a given galaxy catalog.")
-    parser.add_argument("--species", type=str, help="Name of the species in the catalog for which you want to calculate the Fx fields.")
+    parser = argparse.ArgumentParser(description="Compute fields for a given galaxy catalog.")
+    parser.add_argument("--species", type=str, help="Name of the species in the catalog for which you want to calculate the fields.")
     parser.add_argument("--data_catalog_path", type=str, help="Path to the data catalog.")
     parser.add_argument("--randoms_catalog_path", type=str, help="Path to the randoms catalog.")
 
@@ -112,7 +116,9 @@ if __name__ == "__main__":
     else:
         raise ValueError("Please provide the species name in the catalog for which you want to calculate the Fx fields.")
     
-    logging.info(f"Computing Fx fields for Species: {SPECIES}")
+    logging.info(f"Computing fields for Species: {SPECIES}")
+    logging.info(f"Realization: {REALIZATION}")
+    logging.info(f"Redshift range: {ZRANGE}")
 
     DATA_CATALOG_PATH = args.data_catalog_path
     RANDOMS_CATALOG_PATH = args.randoms_catalog_path
@@ -135,47 +141,55 @@ if __name__ == "__main__":
 
     # --- Step 1: Load Catalog and Write Catalog Info to File ---
     # Create the FKP catalog manager instance
+    nz_data_hist = RedshiftHistogram.load(os.path.join(REFERENCE_FILES_DIR, f"nz_zhist", f"nz_z{ZRANGE}_R{REALIZATION}_data.json"))
+    nz_randoms_hist = RedshiftHistogram.load(os.path.join(REFERENCE_FILES_DIR, f"nz_zhist", f"nz_z{ZRANGE}_R{REALIZATION}_randoms.json"))
+
     fkp_manager = FKPCatalogManager(data_catalog_path=DATA_CATALOG_PATH, 
                                     randoms_catalog_path=RANDOMS_CATALOG_PATH, 
-                                    cosmo=cosmo)
-
-    # Load the catalogs
-    data_catalog, random_catalog = fkp_manager.load_catalogs()
+                                    cosmo=cosmo
+                                    )
+    
+    data_catalog, randoms_catalog = fkp_manager.convert_to_cartesian()
+    
+    data_catalog, randoms_catalog = fkp_manager.compute_nofz(zhist_randoms=nz_randoms_hist, WEIGHT='WEIGHT')
 
     # Get catalog info and write it to a file
-    catalog_info = fkp_manager.get_catalog_info()
+    catalog_info = fkp_manager.get_catalog_info(data_catalog=True, randoms_catalog=True)
     with open(os.path.join(CATALOG_INFO_SAVE_DIR, f"CatalogInfo_{SPECIES}_R{REALIZATION}_z{ZRANGE}.txt"), 'w') as file:
+        file.write('-----------------------------------\n')
         file.write('--- Data Catalog Information ---\n')
-        file.write(catalog_info['header_info'])
+        file.write('-----------------------------------\n\n')
+        file.write(catalog_info['data'])
 
-    logging.info(f"Galaxy catalog information written to CatalogInfo_{SPECIES}.txt")
+        file.write('-----------------------------------\n')
+        file.write('\n\n--- Randoms Catalog Information ---\n')
+        file.write('-----------------------------------\n\n')
+        file.write(catalog_info['randoms'])
 
-    # --- Step 2: Convert RA, DEC, and Redshift to Cartesian Coordinates ---
-    data_catalog, random_catalog = fkp_manager.convert_to_cartesian()
+    logging.info(f"Galaxy catalog information written to CatalogInfo_{SPECIES}_R{REALIZATION}_z{ZRANGE}.txt")
 
-    # --- Step 3: Compute N(z) ---
-    data_catalog, random_catalog = fkp_manager.compute_nofz()
-
-    # --- Step 4: Create FKP Catalog ---
+    # --- Step 2: Create FKP Catalog ---
     fkp_catalog = fkp_manager.to_FKPCatalog(P0=2e4)
 
-    # --- Step 5: Compute F_k Field ---
+    # --- Step 3: Compute F_k Field ---
     if os.path.exists(NUM_TRIANGLES_FILE_PATH):
-        fields = ComputeFields(fkp_catalog=fkp_catalog, config=fourier_config, num_triangles_path=NUM_TRIANGLES_FILE_PATH)  
+        fields = ComputeFields(fkp_catalog=fkp_catalog, config=fourier_config, Fk_field=True, Fx_field=True, num_triangles_path=NUM_TRIANGLES_FILE_PATH)  
     else:
-        fields = ComputeFields(fkp_catalog=fkp_catalog, config=fourier_config)
+        fields = ComputeFields(fkp_catalog=fkp_catalog, config=fourier_config, Fk_field=True, Fx_field=True)
 
-    # --- Step 6: Save the properties of the fields ---
-    CATALOG_PROPERTIES_FILE = os.path.join(CATALOG_INFO_SAVE_DIR, f"field_properties_{SPECIES}_R{REALIZATION}_z{ZRANGE}.txt")
+    # --- Step 4: Save the properties of the fields ---
+    CATALOG_PROPERTIES_FILE = os.path.join(CATALOG_INFO_SAVE_DIR, f"field_properties_{SPECIES}_R{REALIZATION}_z{ZRANGE}.pkl")
 
     logging.info("Saving field properties...")
-    with open(CATALOG_PROPERTIES_FILE, "w") as file:
-        file.write(repr(fields.properties))
-    logging.info(f"Field properties saved successfully.")
+    with open(CATALOG_PROPERTIES_FILE, 'wb') as f:
+        pickle.dump(fields.properties, f)
+    
+    logging.info(f"Field properties for {SPECIES}: {fields.properties}")
+    logging.info(f"Field properties for {SPECIES} saved successfully.")
 
     # ----------------------------------------------------------------------------------------------- #
 
-        # --- Step 7: Save Fk fields --- 
+    # --- Step 5: Save Fk fields --- 
     logging.info("Saving F(k) fields...")
     np.save(os.path.join(FIELDS_SAVE_DIR, f"F0_k_{SPECIES}.npy"), fields.F0k_field) 
     logging.info(f"F0k_{SPECIES} field saved successfully.")
@@ -183,13 +197,21 @@ if __name__ == "__main__":
         np.save(os.path.join(FIELDS_SAVE_DIR, f"F2_k_{SPECIES}.npy"), fields.F2k_field)
         logging.info(f"F2k_{SPECIES} field saved successfully.")
 
-    # --- Step 7: Save Fx fields --- 
+    # --- Step 6: Save Fx fields --- 
     logging.info("Saving F(x) fields...")
     np.save(os.path.join(FIELDS_SAVE_DIR, f"F0_x_{SPECIES}.npy"), fields.F0x_field)
     logging.info(f"F0x_{SPECIES} field saved successfully.")
     if 2 in fourier_config['poles']:
         np.save(os.path.join(FIELDS_SAVE_DIR, f"F2_x_{SPECIES}.npy"), fields.F2x_field) 
         logging.info(f"F2x_{SPECIES} field saved successfully.")
+
+    # --- Step 6: Save Fw fields --- 
+    logging.info("Saving Fw(k) fields...")
+    np.save(os.path.join(FIELDS_SAVE_DIR, f"F0_w_{SPECIES}.npy"), fields.F0w)
+    logging.info(f"F0w_{SPECIES} field saved successfully.")
+    if 2 in fourier_config['poles']:
+        np.save(os.path.join(FIELDS_SAVE_DIR, f"F2_w_{SPECIES}.npy"), fields.F2w) 
+        logging.info(f"F2w_{SPECIES} field saved successfully.")
 
     # --- Step 7: Save k-bins & k-configurations --- 
     if not os.path.exists(KBIN_FILE_PATH):

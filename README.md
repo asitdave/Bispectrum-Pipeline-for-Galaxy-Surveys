@@ -1,10 +1,10 @@
-# Bispectrum-Pipeline-for-Galaxy-Surveys (BisPiGalS)
+# BIspectrum and Power spectrum Optimization for LArge Redshift Surveys (BIPOLARS)
 
 ## Overview
-BisPiGalS (Bispectrum Pipeline for Galaxy Surveys) is a Python-based pipeline designed for analyzing galaxy surveys and computing higher-order statistics like the bispectrum and power spectrum multipoles for Euclid-like galaxy surveys. This suite of scripts is optimized for higher-order correlation terms in galaxy catalogs with multiple species, making it an essential tool for cosmological research.
+BIPOLARS is a Python-based pipeline designed for analyzing galaxy surveys and computing higher-order statistics like the bispectrum and power spectrum multipoles for Euclid-like galaxy surveys. This suite of scripts is optimized for higher-order correlation terms in galaxy catalogs with multiple species, making it an essential tool for cosmological research.
 
 ## Pipeline components
-The pipeline is divided into several scripts, each performing a specific role in computing the higher-order statistics. The following is an overview of the core scripts included in BisPiGalS:
+The pipeline is divided into several scripts, each performing a specific role in computing the higher-order statistics. The following is an overview of the core scripts included in BIPOLARS:
 
 1. `compute_fields.py`: This script essentially reads through the catalog and generates the F(k) and F(x) fields for each catalog, which is required for the computation of power spectrum and bispectrum. This also saves important properties of the catalog and computations within for user reference.
 
@@ -13,7 +13,7 @@ The pipeline is divided into several scripts, each performing a specific role in
 3. `compute_ps_terms`: This script computes the power spectrum cross and auto-correlation terms for each species in the galaxy survey catalog. Each term is further scaled by their corresponding species fraction. Results are further stored in a pickle file as a dictionary.
 
 ## Features
-- **Cross-Species Correlation**: Easily compute bispectrum terms for multiple galaxy species (e.g., target, oiii, siii, noise).
+- **Cross-Species Correlation**: Easily compute bispectrum terms for multiple galaxy species (e.g., correct, oiii, siii, noise).
 - **Parallelized Processing**: Leverages multi-threading and multiprocessing to optimize for high-performance computing environments.
 - **Integration with nbodykit**: Utilizes the nbodykit library for cosmology-related functions, enabling accurate and efficient data transformations.
 - **Modular Structure**: Each script is standalone, allowing specific components of the pipeline to be run independently based on need.
@@ -27,22 +27,23 @@ The scripts use environment variables to specify realization numbers, redshift r
 2. Run Pipeline Jobs:
 Each stage of the pipeline is run through `job_scheduler.sh`, which submits jobs to the HPC environment. For example:
 ```bash
-srun job_scheduler.sh
+sbatch job_scheduler.sh
 ```
 
 ## Repository Structure
 ```
-BisPiGalS/
-├── bispigals.py
+BIPOLARS/
+├── bipolars.py
 ├── computation_files/                   
 │   ├── compute_fields.py             
 │   ├── compute_bisp_terms.py                               
-│   └── compute_ps_terms.py                   
+│   ├── compute_ps_terms.py 
+│   └── cross_shotnoise.py                   
 ├── shell_scripts/
 │   ├── job_scheduler.sh             
 │   ├── runpyscript.sh 
 ├── README.md                                                 
-└── venv-bispigals.yml                    
+└── venv-bipolars.yml                    
 ```
 
 Feel free to fork this repository, explore the code, and contribute by submitting issues or pull requests. Suggestions are always welcome!
