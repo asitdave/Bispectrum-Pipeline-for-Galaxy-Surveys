@@ -53,8 +53,9 @@ JOB3_SCRIPT="$BASE_DIR/../computation_files/compute_ps_terms.py"
 # Start timing
 SECONDS=0
 
-# Submit the first job
+# Submit the first job (compute fields)
 JOB_ID1=$(sbatch --job-name=$JOB1_NAME \
+                 --account=$ACCOUNT_NAME \
                  --array=0-$((${#JOB1_ARGS[@]}-1)) \
                  --mem=$J1_MEM \
                  --ntasks=$J1_NTASKS \
@@ -65,26 +66,16 @@ JOB_ID1=$(sbatch --job-name=$JOB1_NAME \
                  --begin=$BEGIN \
                  --mail-type=$MAIL_TYPE \
                  --mail-user=$MAIL_USER \
-                 --partition=$PARTITION_NAME \
+                 --partition=$J1_PARTITION \
                  --exclude=$EXCLUDE_NODE \
-                 --profile=$PROFILE \
                  runpyscript.sh $JOB1_SCRIPT \
                  | awk '{print $4}')   # Extract job ID
-
-# PRINT JOB DETAILS
-echo "Starting JOB 1 at $(date)"
-echo "Running on partition: $PARTITION_NAME"
-echo "Running on hosts: $SLURM_NODELIST"
-echo "Running on $J1_NTASKS processors."
-echo "Running on CPUs per task: $J1_CPUS_PER_TASK"
-echo "Job 1 name: $JOB1_NAME"
-echo "Job 1 script: $JOB1_SCRIPT"
-echo "Job 1 arguments: ${JOB1_ARGS[@]}"
 
 #---------------------------------------------------------------------------------------------#
 
 # Submit the second job (bispectrum terms) after the first one completes successfully
 JOB_ID2=$(sbatch --job-name=$JOB2_NAME \
+                 --account=$ACCOUNT_NAME \
                  --mem=$J2_MEM \
                  --ntasks=$J2_NTASKS \
                  --cpus-per-task=$J2_CPUS_PER_TASK \
@@ -93,15 +84,15 @@ JOB_ID2=$(sbatch --job-name=$JOB2_NAME \
                  --error=$JOB_LOG_DIR/$JOB2_NAME.%A.%N.err \
                  --mail-type=$MAIL_TYPE \
                  --mail-user=$MAIL_USER \
-                 --partition=$PARTITION_NAME \
+                 --partition=$J2_PARTITION \
                  --exclude=$EXCLUDE_NODE \
-                 --profile=$PROFILE \
                  --dependency=afterok:$JOB_ID1 \
                  runpyscript.sh $JOB2_SCRIPT \
                  | awk '{print $4}')   # Extract job ID
 
 # Submit the third job (power spectrum terms) after the first one completes successfully
 JOB_ID3=$(sbatch --job-name=$JOB3_NAME \
+                 --account=$ACCOUNT_NAME \
                  --mem=$J3_MEM \
                  --ntasks=$J3_NTASKS \
                  --cpus-per-task=$J3_CPUS_PER_TASK \
@@ -110,22 +101,75 @@ JOB_ID3=$(sbatch --job-name=$JOB3_NAME \
                  --error=$JOB_LOG_DIR/$JOB3_NAME.%A.%N.err \
                  --mail-type=$MAIL_TYPE \
                  --mail-user=$MAIL_USER \
-                 --partition=$PARTITION_NAME \
+                 --partition=$J3_PARTITION \
                  --exclude=$EXCLUDE_NODE \
-                 --profile=$PROFILE \
                  --dependency=afterok:$JOB_ID1 \
                  runpyscript.sh $JOB3_SCRIPT \
                  | awk '{print $4}')   # Extract job ID
 
-# PRINT JOB DETAILS
+
+# Submit the fourth job (power spectrum terms) after the first one completes successfully
+JOB_ID4=$(sbatch --job-name=$JOB4_NAME \
+                 --account=$ACCOUNT_NAME \
+                 --mem=$J4_MEM \
+                 --ntasks=$J4_NTASKS \
+                 --cpus-per-task=$J4_CPUS_PER_TASK \
+                 --hint=compute_bound \
+                 --output=$JOB_LOG_DIR/$JOB4_NAME.%A.%N.out \
+                 --error=$JOB_LOG_DIR/$JOB4_NAME.%A.%N.err \
+                 --mail-type=$MAIL_TYPE \
+                 --mail-user=$MAIL_USER \
+                 --partition=$J4_PARTITION \
+                 --exclude=$EXCLUDE_NODE \
+                 --dependency=afterok:$JOB_ID1 \
+                 runpyscript.sh $JOB4_SCRIPT \
+                 | awk '{print $4}')   # Extract job ID
+
+#-------------------------------------- PRINT JOB DETAILS --------------------------------------#
+
 echo "--------------------------------------"
-echo "Starting JOB 2 at $(date)"
+echo "Starting JOB 1 at $(date)"
+echo "JOB ID: $JOB_ID1"
 echo "Running on partition: $PARTITION_NAME"
 echo "Running on hosts: $SLURM_NODELIST"
-echo "Running on $J2_NTASKS processors."̃
+echo "Running on $J1_NTASKS processors."
+echo "Running on CPUs per task: $J1_CPUS_PER_TASK"
+echo "Job 1 name: $JOB1_NAME"
+echo "Job 1 script: $JOB1_SCRIPT"
+echo "Job 1 arguments: ${JOB1_ARGS[@]}"
+echo "--------------------------------------"
+
+echo "--------------------------------------"
+echo "Starting JOB 2 at $(date)"
+echo "JOB ID: $JOB_ID2"
+echo "Running on partition: $PARTITION_NAME"
+echo "Running on hosts: $SLURM_NODELIST"
+echo "Running on $J2_NTASKS processors."
 echo "Running on CPUs per task: $J2_CPUS_PER_TASK"
 echo "Job 2 name: $JOB2_NAME"
 echo "Job 2 script: $JOB2_SCRIPT"
+echo "--------------------------------------"
+
+echo "--------------------------------------"
+echo "Starting JOB 3 at $(date)"
+echo "JOB ID: $JOB_ID3"
+echo "Running on partition: $PARTITION_NAME"
+echo "Running on hosts: $SLURM_NODELIST"
+echo "Running on $J3_NTASKS processors."
+echo "Running on CPUs per task: $J3_CPUS_PER_TASK"
+echo "Job 2 name: $JOB3_NAME"
+echo "Job 2 script: $JOB3_SCRIPT"
+echo "--------------------------------------"
+
+echo "--------------------------------------"
+echo "Starting JOB 4 at $(date)"
+echo "JOB ID: $JOB_ID4"
+echo "Running on partition: $PARTITION_NAME"
+echo "Running on hosts: $SLURM_NODELIST"
+echo "Running on $J4_NTASKS processors."
+echo "Running on CPUs per task: $J4_CPUS_PER_TASK"
+echo "Job 2 name: $JOB4_NAME"
+echo "Job 2 script: $JOB4_SCRIPT"
 echo "--------------------------------------"
 
 #-------------------------------------- CHECK JOB STATUS --------------------------------------#
@@ -140,7 +184,7 @@ check_job_status() {
             break
         else
             echo "Job $job_id is still running or in state: $job_status"
-            sleep 180  # Wait for 1 second before checking again
+            sleep 180  # Wait for some seconds before checking again
         fi
     done
 }
@@ -148,13 +192,6 @@ check_job_status() {
 # Check the status of job 2
 check_job_status $JOB_ID2
 check_job_status $JOB_ID3
-
-#-------------------------------------- DELETE FILES --------------------------------------#
-
-# Delete specific files after both jobs are completed
-echo "Both jobs have completed. Now deleting specified files."
-# rm -f /path/to/the/file1
-# rm -f /path/to/the/file2
 
 #-------------------------------------- PRINT THE JOB IDs AND ELAPSED TIME -------------------#
 

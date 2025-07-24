@@ -1,12 +1,12 @@
 """
-BIspectrum and Power spectrum Optimization for LArge Redshift Surveys (BIPOLARS)
+BISpectrum Pipeline for GALaxy Surveys (BisPiGalS)
 -------------------------------------------------
 Author: Asit Dave
 Date: 23-09-2024
 
 Description:
 ------------
-bipolars.py is a pipeline that computes the bispectrum multipoles for Euclid-like galaxy surveys.
+bispigals.py is a pipeline that computes the bispectrum multipoles for Euclid-like galaxy surveys.
 
 The pipeline is divided into four main classes:
 1. FKPCatalogManager: Manages Data and Random Catalogs and helps in coversion to FKPCatalog, computes the redshift distribution n(z), and converts celestial coordinates to Cartesian coordinates.
@@ -940,7 +940,8 @@ class ComputeFields(FourierSpaceManager):
         # Compute Shotnoise for 3-point statistics
         try:
             self.logger.info("Computing shot noise for 3-point statistics...")
-            self.N0_3pt, self.N2_3pt = self.shotnoise_3pt(self.fkp_catalog, self.I33_randoms).values()
+            shotnoise_3pt = self.shotnoise_3pt(self.fkp_catalog, self.I33_randoms)
+            self.N0_3pt, self.N2_3pt = shotnoise_3pt['0'], shotnoise_3pt['2']
             self.logger.info("Shot noise for 3-point statistics computed successfully.")
         except Exception as e:
             self.logger.warning("Shot noise for 3-point statistics not computed. Defaulting to 1.0")
@@ -1028,7 +1029,7 @@ class ComputeFields(FourierSpaceManager):
 
         self.logger.info("Constructing F0(k) field...")
         
-        # Create FKP mesh (Comment out the following line to check for the reference bispectrum data)
+        # Create FKP mesh
         fkp_mesh = self.fkp_catalog.to_mesh(Nmesh=self.N, BoxSize=self.L, BoxCenter=self.BoxCenter, dtype=self.dtype,
                                             resampler=self.resampler, compensated=self.compensated, interlaced=self.interlaced,
                                             comp_weight=self.comp_weight, fkp_weight=self.fkp_weight,
@@ -1177,9 +1178,6 @@ class ComputeFields(FourierSpaceManager):
             except Exception as e:
                 self.logger.error(f"An error occurred: {e}")
                 raise e
-            except FileNotFoundError as e:
-                self.logger.error(f"File not found: {e}")
-                raise e
         return self.num_triangles_per_bin
     
     @profile
@@ -1230,13 +1228,13 @@ class ComputeFields(FourierSpaceManager):
         
         self.logger.info("Computing the weighted F0k field for shot noise...")
         self.F0w = np.fft.fftn(fkp_real_field_SN)
-        self.F0w /= self.Window_function(p=p_value[self.resampler])
         self.logger.info("Weighted F0k field computed successfully.")
 
         del fkp_mesh_SN
 
         self.logger.info("Constructing weighted F2k field for shot noise...")
         self.F2w = self.construct_F2k_field(fkp_field=fkp_real_field_SN, F0k_field=self.F0w)
+        self.F0w /= self.Window_function(p=p_value[self.resampler])
         self.F2w /= self.Window_function(p=p_value[self.resampler])
         self.logger.info("Weighted F2k field constructed successfully.")
 
@@ -1269,17 +1267,21 @@ class ComputeFields(FourierSpaceManager):
         shotnoise_3pt_dict={}
         
         # Power spectrum of the fields for monopole shotnoise
-        SN_term_k123_l0 = spherical_average(self.F0k_field*self.F0w, self.k_bin_info) / I33
+        SN_term_k123_l0 = spherical_average(self.F0k_field*np.conjugate(self.F0w), self.k_bin_info) / I33
         
         # Power spectrum of fields for quadrupole shotnoise
-        SN_term_k1_l2 = 5 * spherical_average(self.F2k_field*self.F0w, self.k_bin_info) / I33
-        SN_term_k2_k3_l2 = 5 * spherical_average(self.F0k_field*self.F2w, self.k_bin_info) / I33
+        SN_term_k1_l2 = 5 * spherical_average(self.F2k_field*np.conjugate(self.F0w), self.k_bin_info) / I33
+        SN_term_k2_k3_l2 = 5 * spherical_average(self.F0k_field*np.conjugate(self.F2w), self.k_bin_info) / I33
         
         def cosine(k1, k2, k3):
-            return (k1**2 + k2**2 - k3**2)/(2*k1*k2)
+            return (k1**2 + k2**2 - k3**2) / (2*k1*k2)
         
         # Compute the shot noise for 3-point statistics
         SN_3pt_0, SN_3pt_2 = [], []
+
+        self.temp_term_1 = []
+        self.temp_term_2 = []
+        self.temp_term_3 = []
 
         # Precompute the Legendre polynomials for l=2
         cosines_k2 = np.array([cosine(k1, k2, k3) for (k1, k2, k3) in self.k_configs])
@@ -1292,6 +1294,14 @@ class ComputeFields(FourierSpaceManager):
 
             SN_3pt_0.append(SN_term_k123_l0[k1-1]  +  SN_term_k123_l0[k2-1]  +  SN_term_k123_l0[k3-1])
             SN_3pt_2.append(SN_term_k1_l2[k1-1]   +   L_k2_2[idx] * SN_term_k2_k3_l2[k2-1]   +   L_k3_2[idx] * SN_term_k2_k3_l2[k3-1])
+
+            self.temp_term_1.append(SN_term_k1_l2[k1-1])
+            self.temp_term_2.append(L_k2_2[idx] * SN_term_k2_k3_l2[k2-1])
+            self.temp_term_3.append(L_k3_2[idx] * SN_term_k2_k3_l2[k3-1])
+
+        self.temp_term_1 = np.array(self.temp_term_1)
+        self.temp_term_2 = np.array(self.temp_term_2)
+        self.temp_term_3 = np.array(self.temp_term_3)
 
         SN_3pt_0 = np.array(SN_3pt_0)
         SN_3pt_2 = np.array(SN_3pt_2)
@@ -1427,6 +1437,8 @@ class Bispectrum(ComputeFields):
         self.F0x_field = Fields.F0x_field
         self.F2x_field = Fields.F2x_field
         self.I33 = Fields.I33_randoms
+
+        self.shotnoise3pt_0, self.shotnoise3pt_2 = self.N0_3pt, self.N2_3pt
         
         self.logger = logging.getLogger(self.__class__.__name__)
         self.num_triangles_per_bin = Fields.num_triangles()
@@ -1457,7 +1469,7 @@ class Bispectrum(ComputeFields):
                 self.logger.info(f"Bispectrum computation successfull for pole: {pole}")
                 bispec_mono /= self.num_triangles_per_bin # Normalize by the number of triangles
                 bispec_mono /= self.I33 # Normalize by I33
-                self.bispectrum_results[f'pole_{pole}'] = bispec_mono
+                self.bispectrum_results[f'pole_{pole}'] = bispec_mono #- self.shotnoise3pt_0
             else:
                 # Compute quadrupole bispectrum
                 self.logger.info(f"Computing quadrupole bispectrum for pole: {pole}")
@@ -1465,7 +1477,7 @@ class Bispectrum(ComputeFields):
                 self.logger.info(f"Bispectrum computation successfull for pole: {pole}")
                 bispec_quad /= self.num_triangles_per_bin # Normalize by the number of triangles
                 bispec_quad /= self.I33 # Normalize by I33
-                self.bispectrum_results[f'pole_{pole}'] = 5 * bispec_quad
+                self.bispectrum_results[f'pole_{pole}'] = 5 * bispec_quad # - self.shotnoise3pt_2
         self.logger.info("Bispectrum computation successfull. Normalized by I33 and number of triangles.")
         return self.bispectrum_results
     
@@ -1575,7 +1587,7 @@ class PowerSpectrum(ComputeFields):
         return np.array(spherical_averages).real
     
     @profile
-    def compute(self) -> np.ndarray: 
+    def compute(self) -> Dict[str, np.ndarray]: 
         """
         Computes the power spectrum for the specified poles (monopole and quadrupole) using 
         the FKP-based fields.

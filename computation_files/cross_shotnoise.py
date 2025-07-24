@@ -3,14 +3,19 @@ This script is used to compute the shotnoise for the 3-point statistics for the 
 This script assumes that you have the FW fields saved, as shown in compute_fields.py script.
 """
 
-
 import itertools
 import numpy as np
 import os
 import pickle
 from scipy.special import legendre
 
-combs = ['o_t', 's_t', 'n_t', 'o_s', 'n_o', 'n_s']
+#----------------------------------------------- Configure the script -----------------------------------------------#
+
+# You can create your own species combinations here
+# For example, if you have species 'target', 'oiii', 'siii', 'noise', you can create combinations like:
+# sorted(itertools.combinations(['t', 'o', 's', 'n'], r=2))
+
+combs = ['o_t', 's_t', 'n_t', 'o_s', 'n_o', 'n_s'] # sorted(itertools.combinations(['t', 'o', 's', 'n'], r=2))
 
 def spherical_average(field: np.ndarray, k_bin_info: dict) -> np.ndarray:
     """
@@ -40,16 +45,16 @@ def spherical_average(field: np.ndarray, k_bin_info: dict) -> np.ndarray:
 
 # Realization number of the catalog
 REALIZATION = os.getenv('REALIZATION') if os.getenv('REALIZATION') is not None else "0001"
-
 # Redshift range of the catalog
 ZRANGE = os.getenv('ZRANGE') if os.getenv('ZRANGE') is not None else "1.1-1.3" 
 
 print(f"REALIZATION: {REALIZATION}")
 print(f"ZRANGE: {ZRANGE}")
 
-FIELDS_SAVE_DIR = "PATH_TO_SAVE_FIELDS" # TODO: Change this path
-REFERENCE_FILES_DIR = "PATH_TO_SAVE_REFERENCE_FILES" # TODO: Change this path
-CATALOG_INFO_SAVE_DIR = "PATH_TO_SAVE_CATALOG_INFO" # TODO: Change this path
+
+FIELDS_SAVE_DIR = "PATH_TO_THE_DIR" # TODO: Change this path
+REFERENCE_FILES_DIR = "PATH_TO_THE_DIR" # TODO: Change this path
+CATALOG_INFO_SAVE_DIR = "PATH_TO_THE_DIR" # TODO: Change this path
 K_BIN_INDICES_FILE_PATH = os.path.join(REFERENCE_FILES_DIR, "k-bin_indices_info.pkl")
 KCONFIG_FILE_PATH = os.path.join(REFERENCE_FILES_DIR, "k_configs.npy")
 
@@ -65,41 +70,38 @@ def load_catalog_properties(filepath):
     return catalog_properties
 
 I33s = {species_names[i]: load_catalog_properties(file)['I33.randoms'] for i, file in enumerate(catalog_properties_files)}
-# I33s['total'] = load_catalog_properties(os.path.join(CATALOG_INFO_SAVE_DIR, f"field_properties_total_R{REALIZATION}_z{ZRANGE}.pkl"))['I33.randoms']
 
 with open(K_BIN_INDICES_FILE_PATH, 'rb') as f:
     k_bin_info = pickle.load(f)
 
 # Load the fields
 F0k = {
-    't': np.load(os.path.join(FIELDS_SAVE_DIR, f"F0_k_target.npy")),
-    'o': np.load(os.path.join(FIELDS_SAVE_DIR, f"F0_k_oiii.npy")),
-    's': np.load(os.path.join(FIELDS_SAVE_DIR, f"F0_k_siii.npy")),
-    'n': np.load(os.path.join(FIELDS_SAVE_DIR, f"F0_k_noise.npy"))
+    't': np.load(os.path.join(FIELDS_SAVE_DIR, f"F0_k_target_z{ZRANGE}.npy")),
+    'o': np.load(os.path.join(FIELDS_SAVE_DIR, f"F0_k_oiii_z{ZRANGE}.npy")),
+    's': np.load(os.path.join(FIELDS_SAVE_DIR, f"F0_k_siii_z{ZRANGE}.npy")),
+    'n': np.load(os.path.join(FIELDS_SAVE_DIR, f"F0_k_noise_z{ZRANGE}.npy"))
 }
 
 F2k = {
-    't': np.load(os.path.join(FIELDS_SAVE_DIR, f"F2_k_target.npy")),
-    'o': np.load(os.path.join(FIELDS_SAVE_DIR, f"F2_k_oiii.npy")),
-    's': np.load(os.path.join(FIELDS_SAVE_DIR, f"F2_k_siii.npy")),
-    'n': np.load(os.path.join(FIELDS_SAVE_DIR, f"F2_k_noise.npy"))
+    't': np.load(os.path.join(FIELDS_SAVE_DIR, f"F2_k_target_z{ZRANGE}.npy")),
+    'o': np.load(os.path.join(FIELDS_SAVE_DIR, f"F2_k_oiii_z{ZRANGE}.npy")),
+    's': np.load(os.path.join(FIELDS_SAVE_DIR, f"F2_k_siii_z{ZRANGE}.npy")),
+    'n': np.load(os.path.join(FIELDS_SAVE_DIR, f"F2_k_noise_z{ZRANGE}.npy"))
 }
 
 F0w = {
-    't': np.load(os.path.join(FIELDS_SAVE_DIR, f"F0_w_target.npy")),
-    'o': np.load(os.path.join(FIELDS_SAVE_DIR, f"F0_w_oiii.npy")),
-    's': np.load(os.path.join(FIELDS_SAVE_DIR, f"F0_w_siii.npy")),
-    'n': np.load(os.path.join(FIELDS_SAVE_DIR, f"F0_w_noise.npy"))
+    't': np.load(os.path.join(FIELDS_SAVE_DIR, f"F0_w_target_z{ZRANGE}.npy")),
+    'o': np.load(os.path.join(FIELDS_SAVE_DIR, f"F0_w_oiii_z{ZRANGE}.npy")),
+    's': np.load(os.path.join(FIELDS_SAVE_DIR, f"F0_w_siii_z{ZRANGE}.npy")),
+    'n': np.load(os.path.join(FIELDS_SAVE_DIR, f"F0_w_noise_z{ZRANGE}.npy"))
 }
 
 F2w = {
-    't': np.load(os.path.join(FIELDS_SAVE_DIR, f"F2_w_target.npy")),
-    'o': np.load(os.path.join(FIELDS_SAVE_DIR, f"F2_w_oiii.npy")),
-    's': np.load(os.path.join(FIELDS_SAVE_DIR, f"F2_w_siii.npy")),
-    'n': np.load(os.path.join(FIELDS_SAVE_DIR, f"F2_w_noise.npy"))
+    't': np.load(os.path.join(FIELDS_SAVE_DIR, f"F2_w_target_z{ZRANGE}.npy")),
+    'o': np.load(os.path.join(FIELDS_SAVE_DIR, f"F2_w_oiii_z{ZRANGE}.npy")),
+    's': np.load(os.path.join(FIELDS_SAVE_DIR, f"F2_w_siii_z{ZRANGE}.npy")),
+    'n': np.load(os.path.join(FIELDS_SAVE_DIR, f"F2_w_noise_z{ZRANGE}.npy"))
 }
-
-
 
 def cosine(k1, k2, k3):
             return (k1**2 + k2**2 - k3**2)/(2*k1*k2)
@@ -108,8 +110,8 @@ def cosine(k1, k2, k3):
 cosines_k2 = np.array([cosine(k1, k2, k3) for (k1, k2, k3) in k_configs])
 cosines_k3 = np.array([cosine(k1, k3, k2) for (k1, k2, k3) in k_configs])
 
-L_k2_2 = legendre(2)(cosines_k2)
-L_k3_2 = legendre(2)(cosines_k3)
+L_k2= legendre(2)(cosines_k2)
+L_k3 = legendre(2)(cosines_k3)
 
 sp_keys = {
     't': 'target',
@@ -134,43 +136,68 @@ for i, sp_comb in enumerate(combs):
 
     print(f"Computing normalization1: {sp_keys[sp1]} {sp_keys[sp1]} {sp_keys[sp2]}")
     print(f"Computing normalization2: {sp_keys[sp2]} {sp_keys[sp2]} {sp_keys[sp1]}")
-
-    norm1 = np.power(I33s[sp_keys[sp1]] * I33s[sp_keys[sp1]] * I33s[sp_keys[sp2]], 1/3)
-    norm2 = np.power(I33s[sp_keys[sp2]] * I33s[sp_keys[sp2]] * I33s[sp_keys[sp1]], 1/3)
-
-    SN_term_k123_l0_1 = spherical_average(F0k[sp1]*F0w[sp2], k_bin_info) / norm1
-    SN_term_k123_l0_2 = spherical_average(F0k[sp2]*F0w[sp1], k_bin_info) / norm2
-
-    # Power spectrum of fields for quadrupole shotnoise
-    SN_term_k1_l2_1 = 5 * spherical_average(F2k[sp1]*F0w[sp2], k_bin_info) / norm1
-    SN_term_k1_l2_2 = 5 * spherical_average(F2k[sp2]*F0w[sp1], k_bin_info) / norm2
-
-    SN_term_k2_k3_l2_1 = 5 * spherical_average(F0k[sp1]*F2w[sp2], k_bin_info) / norm1
-    SN_term_k2_k3_l2_2 = 5 * spherical_average(F0k[sp2]*F2w[sp1], k_bin_info) / norm2
     
-    # Compute the shot noise for 3-point statistics
-    SN_3pt_0_1, SN_3pt_0_2, SN_3pt_2_1, SN_3pt_2_2 = [], [], [], []
+    norm1 = np.power(I33s[sp_keys[sp1]] * I33s[sp_keys[sp1]] * I33s[sp_keys[sp2]], 1/3) # sp1-sp1-sp2
+    norm2 = np.power(I33s[sp_keys[sp2]] * I33s[sp_keys[sp2]] * I33s[sp_keys[sp1]], 1/3) # sp2-sp2-sp1
 
-    for idx, (k1, k2, k3) in enumerate(k_configs):
-        # Monpole shot noise
-        SN_3pt_0_1.append(SN_term_k123_l0_1[k1-1]  +  SN_term_k123_l0_1[k2-1]  +  SN_term_k123_l0_1[k3-1])
-        SN_3pt_0_2.append(SN_term_k123_l0_2[k1-1]  +  SN_term_k123_l0_2[k2-1]  +  SN_term_k123_l0_2[k3-1])
-            
-        # Quadrupole shot noise
-        SN_3pt_2_1.append(SN_term_k1_l2_1[k1-1]   +   L_k2_2[idx] * SN_term_k2_k3_l2_1[k2-1]   +   L_k3_2[idx] * SN_term_k2_k3_l2_1[k3-1])
-        SN_3pt_2_2.append(SN_term_k1_l2_2[k1-1]   +   L_k2_2[idx] * SN_term_k2_k3_l2_2[k2-1]   +   L_k3_2[idx] * SN_term_k2_k3_l2_2[k3-1])
+    # Power spectrum of fields for monopole shotnoise
+    SN_term_k123_l0_1 = spherical_average(F0k[sp2]*np.conjugate(F0w[sp1]), k_bin_info) / norm1 # sp1-sp1-sp2
+    SN_term_k123_l0_2 = spherical_average(F0k[sp1]*np.conjugate(F0w[sp2]), k_bin_info) / norm2 # sp2-sp2-sp1
+
+    # Power spectrum of fields for quadrupole shotnoise (first term)
+    SN_term_k1_l2_1 = 5 * spherical_average(F2k[sp2]*np.conjugate(F0w[sp1]), k_bin_info) / norm1 # sp1-sp1-sp2
+    SN_term_k1_l2_2 = 5 * spherical_average(F2k[sp1]*np.conjugate(F0w[sp2]), k_bin_info) / norm2 # sp2-sp2-sp1
+
+    # Power spectrum of fields for quadrupole shotnoise (second and third term)
+    SN_term_k2_k3_l2_1 = 5 * spherical_average(F0k[sp2]*np.conjugate(F2w[sp1]), k_bin_info) / norm1 # sp1-sp1-sp2
+    SN_term_k2_k3_l2_2 = 5 * spherical_average(F0k[sp1]*np.conjugate(F2w[sp2]), k_bin_info) / norm2 # sp2-sp2-sp1
     
-    SN_3pt_0_1 = np.array(SN_3pt_0_1)
-    SN_3pt_0_2 = np.array(SN_3pt_0_2)
+    for perm in perms:
+        species1, species2, species3 = perm
 
-    SN_3pt_2_1 = np.array(SN_3pt_2_1)
-    SN_3pt_2_2 = np.array(SN_3pt_2_2)
+        # Compute the shot noise for 3-point statistics
+        SN_3pt_0, SN_3pt_2 = [], []
 
-    shotnoise_3pt_dict[f'{sp1}{sp1}{sp2}_0'] = SN_3pt_0_1 
-    shotnoise_3pt_dict[f'{sp1}{sp2}{sp2}_0'] = SN_3pt_0_2 
-    
-    shotnoise_3pt_dict[f'{sp1}{sp1}{sp2}_2'] = SN_3pt_2_1
-    shotnoise_3pt_dict[f'{sp1}{sp2}{sp2}_2'] = SN_3pt_2_2
+        for idx, (k1, k2, k3) in enumerate(k_configs):
+            if species2==species3:
+                if species2==sp1: # Case for sp1-sp1-sp2 
+                    # Use 1st Term, first equation
+                    SN_3pt_0.append(SN_term_k123_l0_1[k1-1]) # Monpole shot noise
+                    SN_3pt_2.append(SN_term_k1_l2_1[k1-1]) # Quadrupole shot noise
+                    
+                else: # Case for sp1-sp2-sp2
+                    # Use 1st Term, second equation
+                    SN_3pt_0.append(SN_term_k123_l0_2[k1-1]) # Monpole shot noise
+                    SN_3pt_2.append(SN_term_k1_l2_2[k1-1]) # Quadrupole shot noise
+
+            elif species1==species3:
+                if species1 == sp1:
+                    # Use 2nd term, first equation
+                    SN_3pt_0.append(SN_term_k123_l0_1[k2-1])
+                    SN_3pt_2.append(L_k3[idx] * SN_term_k2_k3_l2_1[k2-1])
+                
+                else:
+                    # Use 2nd term, second equation
+                    SN_3pt_0.append(SN_term_k123_l0_2[k2-1])
+                    SN_3pt_2.append(L_k3[idx] * SN_term_k2_k3_l2_2[k2-1])
+
+            elif species1==species2:
+                if species1 == sp1: 
+                    # Use 3rd term, first equation
+                    SN_3pt_0.append(SN_term_k123_l0_1[k3-1]) # Monpole shot noise
+                    SN_3pt_2.append(L_k2[idx] * SN_term_k2_k3_l2_1[k3-1]) # Quadrupole shot noise
+
+                else:
+                    # Use 3rd term, second equation
+                    SN_3pt_0.append(SN_term_k123_l0_2[k3-1]) # Monpole shot noise
+                    SN_3pt_2.append(L_k2[idx] * SN_term_k2_k3_l2_2[k3-1]) # Quadrupole shot noise
+  
+
+        SN_3pt_0 = np.array(SN_3pt_0)
+        SN_3pt_2 = np.array(SN_3pt_2)
+
+        shotnoise_3pt_dict[f'{species1}{species2}{species3}_0'] = SN_3pt_0 
+        shotnoise_3pt_dict[f'{species1}{species2}{species3}_2'] = SN_3pt_2 
 
 
 # Save the shotnoise dictionary

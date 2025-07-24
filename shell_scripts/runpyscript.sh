@@ -31,7 +31,6 @@ declare -A RANDOM_PATHS=(
 
 # Check if SLURM_ARRAY_TASK_ID is set and if any arguments are passed
 if [ -n "$SLURM_ARRAY_TASK_ID" ]; then
-
     # Dynamically get the species argument based on SLURM_ARRAY_TASK_ID
     SPECIES_ARG=${JOB1_ARGS[$SLURM_ARRAY_TASK_ID]}
     

@@ -17,12 +17,6 @@ bispectrum multipoles for Euclid-like galaxy surveys.
 
 #----------------------------------------------- Import libraries -----------------------------------------------#
 
-import sys
-import os
-
-parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-sys.path.insert(0, parent_dir)
-
 from bipolars import BispectrumTerms
 from compute_fields import FIELDS_SAVE_DIR, CATALOG_INFO_SAVE_DIR, NUM_TRIANGLES_FILE_PATH, KCONFIG_FILE_PATH, REALIZATION, ZRANGE, fourier_config
 
